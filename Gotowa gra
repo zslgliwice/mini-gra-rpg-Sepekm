@@ -1,0 +1,208 @@
+//zmodyfikowałem trochę polecenie,jest to minigra,nie ma co prawda żandej walki z wilkami czy systemu waluty,
+chciałem zrobić coś co łączy moje obecne hobby (bioinżynierie) i przedstawia rolę bioinżyniera i przypadki pacjentów których może wyleczyć,albo odmówić leczenia
+zmieniłem także wersję konsolową w wersję z wyskakującym oknem
+
+
+
+import tkinter as tk
+from tkinter import messagebox
+import random
+import time
+import winsound
+
+# Dane pacjentów i genów
+pacjenci = [
+    {"name": "Eleanora, 72 lata", "desc": "Ma ciężki zanik mięśni, ale cierpi też na problemy z sercem.", "need": ["IGF-1", "Follistatin"], "avoid": ["MYO-X"]},
+    {"name": "Jacek, 24 lata", "desc": "Zdrowy sportowiec, który chce się wzmocnić.", "need": [], "avoid": ["ACTN3", "MYO-X"]},
+    {"name": "Mira, 35 lat", "desc": "Choroba mitochondrialna – potrzebuje wytrzymałości i regeneracji.", "need": ["PGC-1α", "LMNA-Δ"], "avoid": ["TP53"]},
+    {"name": "Kamil, 19 lat", "desc": "Kulturysta, chce dużych mięśni natychmiast.", "need": [], "avoid": ["MYO-X", "ACTN3"]},
+    {"name": "Dr Selene, 60 lat", "desc": "Po operacji, ale ma ryzyko nowotworu. Potrzebuje regeneracji.\nTP53 może pomóc, ale jest niestabilny.", "need": ["IGF-1", "TP53"], "avoid": ["LMNA-Δ"]}
+]
+
+geny = {
+    "IGF-1": "Bezpieczny – wspomaga wzrost mięśni, regenerację i siłę",
+    "Follistatin": "Bezpieczny – blokuje miostatynę, zwiększając masę mięśniową",
+    "PGC-1α": "Bezpieczny – zwiększa wytrzymałość i funkcjonowanie mitochondriów",
+    "Medusa-gene": "Neutralny – znacznik fluorescencyjny do śledzenia terapii",
+    "MYO-X": "Ryzykowny – ekstremalna hipertrofia, możliwy przerost serca",
+    "ACTN3": "Kontrowersyjny – zwiększa siłę, ale nadużycie uznawane za nieetyczne",
+    "TP53": "Eksperymentalny – może chronić przed rakiem, ale grozi mutacjami",
+    "LMNA-Δ": "Nieprzewidywalny – przyspiesza regenerację, ale zwiększa ryzyko mutacji"
+}
+
+aktualny = 0
+wynik = 0
+checkboxes = {}
+animacja_running = False
+
+# Spiralna animacja DNA jako WIELOLINIOWA sekwencja
+animacja_dna_frames = [
+    "    A=T    \n   G---C   \n  T===A   ",
+    "   G---C   \n  T===A   \n   C---G  ",
+    "  T===A   \n   C---G  \n    G=C    ",
+    "   C---G  \n    G=C    \n   T---A  ",
+    "    G=C    \n   T---A  \n  C===G   ",
+    "   T---A  \n  C===G   \n   A---T  ",
+    "  C===G   \n   A---T  \n    A=T    ",
+    "   A---T  \n    A=T    \n   G---C  "
+]
+
+def animacja_dna(label, callback):
+    def animuj(index=0):
+        global animacja_running
+        if index < len(animacja_dna_frames) * 2:
+            label.config(text=f"Przetwarzanie terapii...\n\n{animacja_dna_frames[index % len(animacja_dna_frames)]}")
+            root.after(120, lambda: animuj(index + 1))
+        else:
+            animacja_running = False
+            callback()
+    animacja_running = True
+    animuj()
+
+def ocen_geny(wybrane, pacjent):
+    if not wybrane:
+        winsound.Beep(400, 200)
+        return ("Odmowa leczenia.", 1 if not pacjent['need'] else -1)
+
+    score = 0
+    efekt = ""
+    raport = []
+
+    for g in wybrane:
+        if g in pacjent['need']:
+            score += 1
+        if g in pacjent['avoid']:
+            score -= 2
+        if g in ["MYO-X", "TP53", "LMNA-Δ"] and random.random() < 0.4:
+            efekt += f"⚠️ {g}: Wystąpiły nieprzewidziane skutki uboczne!\n"
+            score -= random.choice([1, 2])
+        raport.append(f"- {g}: {geny[g]}")
+
+    wynik_text = efekt + "\n".join(raport)
+
+    if score >= 2:
+        winsound.Beep(800, 200)
+        return ("✅ Terapia udana!\n" + wynik_text, 2)
+    elif score > 0:
+        winsound.Beep(600, 200)
+        return ("⚠️ Częściowo skuteczna terapia.\n" + wynik_text, 1)
+    elif score == 0:
+        winsound.Beep(500, 200)
+        return ("➖ Neutralny efekt.\n" + wynik_text, 0)
+    else:
+        winsound.Beep(300, 300)
+        return ("❌ Terapia nieudana lub szkodliwa!\n" + wynik_text, -2)
+
+def nastepny_pacjent():
+    if animacja_running:
+        return
+    wybrane = [g for g in checkboxes if checkboxes[g].get() == 1]
+    pacjent = pacjenci[aktualny]
+
+    def po_animacji():
+        global aktualny, wynik
+        wynik_terapii, zmiana = ocen_geny(wybrane, pacjent)
+        wynik += zmiana
+        messagebox.showinfo("Wynik", wynik_terapii)
+        aktualny += 1
+        if aktualny >= len(pacjenci):
+            koniec()
+        else:
+            zaladuj_pacjenta()
+
+    animacja_dna(animacja_label, po_animacji)
+
+def odmowa():
+    if animacja_running:
+        return
+    pacjent = pacjenci[aktualny]
+
+    def po_animacji():
+        global aktualny, wynik
+        wynik_terapii, zmiana = ocen_geny([], pacjent)
+        wynik += zmiana
+        messagebox.showinfo("Odmowa", wynik_terapii)
+        aktualny += 1
+        if aktualny >= len(pacjenci):
+            koniec()
+        else:
+            zaladuj_pacjenta()
+
+    animacja_dna(animacja_label, po_animacji)
+
+def koniec():
+    for widget in root.winfo_children():
+        widget.destroy()
+    tk.Label(root, text="KONIEC GRY", font=("Arial", 20), fg="orange red", bg="#121212").pack(pady=10)
+    tk.Label(root, text=f"Twój wynik: {wynik}", font=("Arial", 18), fg="orange red", bg="#121212").pack(pady=10)
+    tk.Label(root, text="HOPE-1 to realna koncepcja terapii genowej,\nnad którą pracuję. Mam nadzieję kiedyś ją urzeczywistnić.",
+             font=("Arial", 14), fg="orange red", bg="#121212", justify="center").pack(pady=20)
+
+def zaladuj_pacjenta():
+    for widget in frame_geny.winfo_children():
+        widget.destroy()
+    pacjent = pacjenci[aktualny]
+    label_pacjent.config(text=f"{pacjent['name']}\n{pacjent['desc']}")
+    portrait_label.config(text="""
+     😐
+    /|\\
+    / \\
+    """)
+    for gen in geny:
+        var = tk.IntVar()
+        checkboxes[gen] = var
+        tk.Checkbutton(frame_geny, text=f"{gen}: {geny[gen]}", variable=var,
+                       font=("Arial", 14), fg="orange red", bg="#121212", selectcolor="gray20", anchor="w", wraplength=640, justify="left").pack(anchor="w")
+    animacja_label.config(text="")
+
+def intro():
+    for w in root.winfo_children():
+        w.destroy()
+    logo = """
+     _   _  ____  _____ ______ 
+    | | | |/ __ \|  __ \|  ____|
+    | |_| | |  | | |__) | |__   
+    |  _  | |  | |  _  /|  __|  
+    | | | | |__| | |   | |____ 
+    |_| |_|\____/|_|    \______|
+    """
+    tk.Label(root, text=logo, font=("Courier", 16), fg="orange red", bg="#121212").pack()
+    tekst = (
+        "Witaj w HOPE-1 – najnowocześniejszym symulatorze terapii genowej.\n"
+        "Zostałeś mianowany głównym inżynierem odpowiedzialnym za terapię\n"
+        "ratującą życie osobom cierpiącym na zanik mięśni. Twoim zadaniem jest\n"
+        "podejmowanie trudnych decyzji, balansując między możliwościami nauki\n"
+        "a granicami etyki.\n\nWybierz odpowiednie geny dla każdego pacjenta lub odmów leczenia.\n"
+        "Pamiętaj, że każdy wybór niesie konsekwencje. Powodzenia."
+    )
+    tk.Label(root, text=tekst, font=("Arial", 14), fg="orange red", bg="#121212", justify="center").pack(pady=10)
+    tk.Button(root, text="Start", font=("Arial", 14), command=start_game).pack(pady=20)
+
+def start_game():
+    global label_pacjent, frame_geny, animacja_label, portrait_label
+    for widget in root.winfo_children():
+        widget.destroy()
+    label_pacjent = tk.Label(root, text="", font=("Arial", 16), fg="orange red", bg="#121212")
+    label_pacjent.pack(pady=10)
+
+    portrait_label = tk.Label(root, text="", font=("Courier", 18), fg="orange red", bg="#121212")
+    portrait_label.pack(pady=5)
+
+    frame_geny = tk.Frame(root, bg="#121212")
+    frame_geny.pack()
+
+    animacja_label = tk.Label(root, text="", font=("Courier", 20), fg="orange red", bg="#121212", justify="center")
+    animacja_label.pack(pady=20)
+
+    tk.Button(root, text="Zastosuj terapię", font=("Arial", 14), command=nastepny_pacjent).pack(pady=5)
+    tk.Button(root, text="Odmów leczenia", font=("Arial", 14), command=odmowa).pack(pady=5)
+
+    zaladuj_pacjenta()
+
+# Okno
+root = tk.Tk()
+root.title("HOPE-1")
+root.geometry("820x880")
+root.configure(bg="#121212")
+intro()
+root.mainloop()
